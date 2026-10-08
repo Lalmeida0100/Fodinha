@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fodinha</title>
+<meta name="description" content="Controle de partidas de Fodinha: palpites, vazas, letras e placar. Funciona offline, sem cadastro.">
+<meta name="theme-color" content="#0f3b2c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fodinha">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+<div id="app"><noscript>O Fodinha precisa do JavaScript ativado para funcionar.</noscript></div>
+
+<!-- Modelo das telas: interpretado por assets/js/runtime.js -->
+<template id="app-template">
+<div class="app felt theme-{{themeKey}}">
+<sc-if value="{{offline}}"><div class="offline-pill" role="status">Modo offline</div></sc-if>
+<!-- ============ PLACAR MINIMIZADO (barra) ============ -->
+<sc-if value="{{showPlacarBar}}" hint-placeholder-val="{{ false }}">
+<button type="button" class="pbar" onClick="{{openPlacar}}" aria-label="Abrir placar">
+<span class="pbar-t"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 20V11M12 20V5M18 20v-6"></path></svg>PLACAR</span>
+<span class="pbar-l"><sc-for list="{{pl.mini}}" as="pm" hint-placeholder-count="4"><span class="pm {{pm.cls}}"><b>{{pm.name}}</b> {{pm.word}}</span></sc-for></span>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 15l6-6 6 6"></path></svg>
+</button>
+</sc-if>
+
+<!-- ============ INÍCIO ============ -->
+<sc-if value="{{isHome}}" hint-placeholder-val="{{ true }}">
+<div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between; padding: 96px 24px 40px; box-sizing: border-box">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 22px">
+<div style="display: flex; gap: 6px" aria-label="FODINHA">
+<div class="tile on tile-lg" style="animation-delay: 0s">F</div>
+<div class="tile on tile-lg" style="animation-delay: .07s">O</div>
+<div class="tile on tile-lg" style="animation-delay: .14s">D</div>
+<div class="tile on tile-lg" style="animation-delay: .21s">I</div>
+<div class="tile on tile-lg" style="animation-delay: .28s">N</div>
+<div class="tile on tile-lg" style="animation-delay: .35s">H</div>
+<div class="tile on tile-lg" style="animation-delay: .42s">A</div>
+</div>
+<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color: var(--mu)" aria-hidden="true"><rect x="4" y="6" width="11" height="15" rx="2"></rect><path d="M9 3h9a2 2 0 0 1 2 2v12"></path></svg>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<button type="button" class="btn btn-pri btn-xl" onClick="{{goNew}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>NOVO JOGO</button>
+<button type="button" class="btn btn-sec btn-xl" onClick="{{goList}}" disabled="{{noGames}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"></path></svg>RETOMAR JOGO</button>
+<button type="button" class="btn btn-ghost" onClick="{{goData}}">Backup e dados</button>
+</div>
+</div>
+</sc-if>
+
+<!-- ============ NOVO JOGO ============ -->
+<sc-if value="{{isSetup}}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{setupPlayersStep}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px; flex: none">
+<button type="button" class="icon-btn" aria-label="Voltar" onClick="{{goHome}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<div class="disp" style="font-size: 22px; font-weight: 800; letter-spacing: .02em">NOVO JOGO</div>
+</div>
+<div class="scroll" style="padding: 8px 16px 20px; display: flex; flex-direction: column; gap: 22px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label class="lbl" for="gname">Nome da partida</label>
+<input id="gname" class="field" type="text" placeholder="{{autoName}}" value="{{draft.name}}" onChange="{{setDraftName}}">
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<div class="lbl">Jogadores</div>
+<div class="lbl" style="letter-spacing: .04em">{{setupCount}}</div>
+</div>
+<sc-for list="{{setupPlayers}}" as="sp" hint-placeholder-count="4">
+<div class="card" style="display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 12px; border-radius: 14px">
+<div class="disp mu" style="width: 20px; font-weight: 800; font-size: 15px">{{sp.num}}</div>
+<label for="{{sp.inputId}}" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Nome do jogador {{sp.num}}</label>
+<input id="{{sp.inputId}}" type="text" value="{{sp.name}}" onChange="{{sp.rename}}" style="flex: 1 1 auto; min-width: 0; height: 44px; border: 0; background: transparent; color: var(--tx); font: inherit; font-size: 17px; font-weight: 700; padding: 0 6px">
+<button type="button" class="icon-btn" aria-label="Mover para cima" onClick="{{sp.up}}" disabled="{{sp.first}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"></path></svg></button>
+<button type="button" class="icon-btn" aria-label="Mover para baixo" onClick="{{sp.down}}" disabled="{{sp.last}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<button type="button" class="icon-btn" aria-label="Remover jogador" onClick="{{sp.remove}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--dead)"><path d="M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3"></path></svg></button>
+</div>
+</sc-for>
+<div style="display: flex; gap: 8px">
+<label for="newp" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Nome do novo jogador</label>
+<input id="newp" class="field" type="text" placeholder="Nome do jogador" value="{{draft.newName}}" onChange="{{setNewName}}" onKeyDown="{{newNameKey}}" style="flex: 1 1 auto; min-width: 0">
+<button type="button" class="btn btn-sec" onClick="{{addPlayer}}" disabled="{{cantAdd}}" style="padding: 0 16px; flex: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>ADICIONAR</button>
+</div>
+<sc-if value="{{showDeckOpt}}" hint-placeholder-val="{{ false }}">
+<label class="check card" style="padding: 14px">
+<input type="checkbox" checked="{{draft.multiDeck}}" onChange="{{toggleMultiDeck}}">
+<span style="display: flex; flex-direction: column; gap: 3px"><span style="font-weight: 800">Vamos usar mais de um baralho</span><span class="mu" style="font-size: 14px">Libera mais de {{maxPlayers}} jogadores na mesa.</span></span>
+</label>
+</sc-if>
+</div>
+<div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px">
+<div class="lbl">Baralho</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{deckChips}}" as="dc" hint-placeholder-count="6"><button type="button" class="chip {{dc.cls}}" onClick="{{dc.pick}}" style="padding: 0 6px">{{dc.label}}</button></sc-for>
+</div>
+<sc-if value="{{deckCustom}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label class="mu" for="deckc" style="font-size: 13px; font-weight: 700">Total de cartas disponíveis (ex.: 2 baralhos de 40 = 80)</label>
+<input id="deckc" class="field" type="number" inputmode="numeric" min="1" value="{{deckValue}}" onChange="{{setDeckCustom}}">
+</div>
+</sc-if>
+<div class="lbl" style="margin-top: 6px">Limite de cartas</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{limitChips}}" as="lc" hint-placeholder-count="2"><button type="button" class="chip {{lc.cls}}" onClick="{{lc.pick}}" style="text-align: left; padding: 10px 14px">{{lc.label}}</button></sc-for>
+</div>
+<div class="lbl" style="margin-top: 6px">Prévia</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<div class="pv"><b>{{pv.players}}</b><span class="mu" style="font-size: 12px; font-weight: 700">jogadores</span></div>
+<div class="pv"><b>{{pv.deck}}</b><span class="mu" style="font-size: 12px; font-weight: 700">cartas</span></div>
+<div class="pv"><b>{{pv.max}}</b><span class="mu" style="font-size: 12px; font-weight: 700">máx./jogador</span></div>
+</div>
+<div class="pv"><span class="mu" style="font-size: 12px; font-weight: 800; letter-spacing: .1em">CICLO DE RODADAS</span><span style="font-weight: 800; font-size: 16px">{{pv.cycle}}</span></div>
+<sc-if value="{{pv.error}}" hint-placeholder-val="{{ false }}"><div style="font-size: 14px; font-weight: 700; color: var(--dead); line-height: 1.4" role="alert">{{pv.error}}</div></sc-if>
+</div>
+<div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<div class="disp" style="font-size: 20px; font-weight: 800">RODADA 1</div>
+<span class="pill">1 CARTA</span>
+</div>
+<div style="font-weight: 800">Regra especial: CARTA NA TESTA</div>
+<p class="mu" style="margin: 0; font-size: 15px; line-height: 1.45; text-wrap: pretty">Cada jogador recebe uma carta e não pode olhar a própria. A carta vai na testa: você vê as cartas dos outros, nunca a sua.</p>
+<label class="check">
+<input type="checkbox" checked="{{draft.testa}}" onChange="{{toggleTesta}}">
+<span style="font-weight: 700; padding-top: 2px">Usar carta na testa na primeira rodada</span>
+</label>
+</div>
+</div>
+<div style="padding: 12px 16px 20px; border-top: 1px solid var(--line); background: var(--sf); display: flex; flex-direction: column; gap: 8px; flex: none">
+<sc-if value="{{setupHint}}" hint-placeholder-val="{{ true }}"><div class="mu" style="text-align: center; font-size: 14px; font-weight: 600">{{setupHint}}</div></sc-if>
+<button type="button" class="btn btn-pri btn-xl" onClick="{{goMesa}}" disabled="{{cantStart}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20v-6h12v6M8 14V9h8v5M12 9V5"></path></svg>ORDEM DA MESA</button>
+</div>
+</sc-if>
+
+<!-- etapa ORDEM DA MESA -->
+<sc-if value="{{setupMesaStep}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px; flex: none">
+<button type="button" class="icon-btn" aria-label="Voltar para jogadores" onClick="{{backPlayers}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<div class="disp" style="font-size: 22px; font-weight: 800">ORDEM DA MESA</div>
+</div>
+<div class="scroll" style="padding: 8px 16px 20px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="lbl">1 · Como estão sentados</div>
+<div class="mu" style="font-size: 14px; line-height: 1.4">Coloque na ordem em que cada um está sentado, seguindo a volta da mesa.</div>
+<sc-for list="{{setupPlayers}}" as="sp" hint-placeholder-count="4">
+<div class="card" style="display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 14px; border-radius: 14px; min-height: 52px">
+<div class="disp mu" style="width: 22px; font-weight: 800; font-size: 15px">{{sp.num}}</div>
+<div style="flex: 1 1 auto; font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sp.name}}</div>
+<button type="button" class="icon-btn" aria-label="Mover para cima" onClick="{{sp.up}}" disabled="{{sp.first}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"></path></svg></button>
+<button type="button" class="icon-btn" aria-label="Mover para baixo" onClick="{{sp.down}}" disabled="{{sp.last}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="lbl">2 · Quem começa a rodada 1?</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{firstChips}}" as="fc" hint-placeholder-count="4"><button type="button" class="chip {{fc.cls}}" onClick="{{fc.pick}}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{fc.label}}</button></sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="lbl">3 · Sentido</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{dirChips}}" as="dc2" hint-placeholder-count="2"><button type="button" class="chip {{dc2.cls}}" onClick="{{dc2.pick}}" style="font-size: 15px">{{dc2.label}}</button></sc-for>
+</div>
+</div>
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 8px">
+<div class="lbl">A ordem da mesa ficará</div>
+<div class="disp" style="font-size: 18px; font-weight: 800; line-height: 1.4">{{mesaPreview}}</div>
+<div class="mu" style="font-size: 13px; line-height: 1.45">Rodada 1 começa com {{mesaFirst}}. Na rodada 2 começa {{mesaR2}}, e assim por diante: quem começa gira a cada rodada, pulando os eliminados.</div>
+</div>
+</div>
+<div style="padding: 12px 16px 20px; border-top: 1px solid var(--line); background: var(--sf); flex: none">
+<button type="button" class="btn btn-pri btn-xl" onClick="{{startGame}}" disabled="{{cantStart}}" style="width: 100%"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="6" width="11" height="15" rx="2"></rect><path d="M9 3h9a2 2 0 0 1 2 2v12"></path></svg>INICIAR FODINHA</button>
+</div>
+</sc-if>
+</sc-if>
+
+<!-- ============ JOGOS SALVOS ============ -->
+<sc-if value="{{isList}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px; flex: none">
+<button type="button" class="icon-btn" aria-label="Voltar" onClick="{{goHome}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<div class="disp" style="font-size: 22px; font-weight: 800">JOGOS SALVOS</div>
+</div>
+<div class="scroll" style="padding: 8px 16px 24px; display: flex; flex-direction: column; gap: 14px">
+<sc-if value="{{hasOngoing}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 8px; margin-top: 4px"><span class="dot bg-ok"></span><span class="lbl">Em andamento</span></div>
+</sc-if>
+<sc-for list="{{ongoing}}" as="gc" hint-placeholder-count="1">
+<div class="card rise" style="padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px">
+<div class="disp" style="font-size: 20px; font-weight: 800; line-height: 1.15">{{gc.name}}</div>
+<span class="pill" style="flex: none">RODADA {{gc.round}}</span>
+</div>
+<div style="font-size: 14px; line-height: 1.5"><span class="lbl" style="letter-spacing: .08em">Jogadores</span><br>{{gc.players}}</div>
+<div class="mu" style="font-size: 14px; font-weight: 600">{{gc.status}} · {{gc.date}}</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<button type="button" class="btn btn-pri btn-sm" onClick="{{gc.cont}}">CONTINUAR</button>
+<button type="button" class="btn btn-sec btn-sm" onClick="{{gc.view}}">VER PARTIDA</button>
+<button type="button" class="btn btn-sec btn-sm" onClick="{{gc.del}}" style="color: var(--dead)">EXCLUIR</button>
+</div>
+</div>
+</sc-for>
+<sc-if value="{{hasFinished}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 8px; margin-top: 10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: #e9c25a"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"></path><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"></path></svg><span class="lbl">Finalizados</span></div>
+</sc-if>
+<sc-for list="{{finished}}" as="gf" hint-placeholder-count="1">
+<div class="card rise" style="padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px">
+<div class="disp" style="font-size: 20px; font-weight: 800; line-height: 1.15">{{gf.name}}</div>
+<span class="pill" style="flex: none">{{gf.round}} RODADAS</span>
+</div>
+<div style="font-size: 14px; line-height: 1.5"><span class="lbl" style="letter-spacing: .08em">Jogadores</span><br>{{gf.players}}</div>
+<div style="font-size: 15px; font-weight: 800">Vencedor: {{gf.winner}}</div>
+<div class="mu" style="font-size: 14px; font-weight: 600">Finalizado · {{gf.date}}</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button type="button" class="btn btn-pri btn-sm" onClick="{{gf.view}}">VER PARTIDA</button>
+<button type="button" class="btn btn-sec btn-sm" onClick="{{gf.del}}" style="color: var(--dead)">EXCLUIR</button>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<!-- ============ PARTIDA ============ -->
+<sc-if value="{{isGame}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 4px; padding: 12px 8px 6px; flex: none">
+<button type="button" class="icon-btn" aria-label="Início" onClick="{{goHome}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"></path></svg></button>
+<div style="flex: 1 1 auto; min-width: 0; text-align: center">
+<div class="mu" style="font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{gv.name}}</div>
+<div class="disp" style="font-size: 24px; font-weight: 800; letter-spacing: .03em; line-height: 1.1">{{gv.roundTitle}}</div>
+</div>
+<button type="button" class="icon-btn" aria-label="Desfazer última rodada" onClick="{{askUndo}}" disabled="{{gv.noRounds}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></button>
+<button type="button" class="icon-btn" aria-label="Configurações" onClick="{{goSettings}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg></button>
+</div>
+
+<!-- MESA -->
+<sc-if value="{{tabMesa}}" hint-placeholder-val="{{ true }}">
+<div class="scroll" style="padding: 6px 16px 18px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center">
+<sc-if value="{{gv.ongoing}}" hint-placeholder-val="{{ true }}"><span class="pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="4" y="6" width="11" height="15" rx="2"></rect><path d="M9 3h9a2 2 0 0 1 2 2v12"></path></svg>{{gv.cardsLabel}}</span></sc-if>
+<sc-if value="{{gv.nextTesta}}" hint-placeholder-val="{{ false }}"><span class="pill">CARTA NA TESTA</span></sc-if>
+<span class="pill">{{gv.aliveLabel}}</span>
+</div>
+<sc-if value="{{gv.ongoing}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<div class="mu" style="font-size: 14px; font-weight: 700">{{gv.maxLine}}</div>
+<sc-if value="{{gv.cycleTag}}" hint-placeholder-val="{{ false }}"><span class="tag">{{gv.cycleTag}}</span></sc-if>
+<div class="card" style="padding: 10px 14px; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; box-sizing: border-box">
+<div style="display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 15px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>Começa: {{gv.nextStarter}}</div>
+<div class="mu" style="font-size: 13px; font-weight: 600; text-align: center; line-height: 1.4">{{gv.nextOrder}}</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{gv.deckWarn}}" hint-placeholder-val="{{ false }}">
+<div class="card" style="padding: 12px 14px; font-size: 14px; font-weight: 600; border-color: var(--risk); color: var(--risk)">{{gv.deckWarn}}</div>
+</sc-if>
+<sc-if value="{{gv.done}}" hint-placeholder-val="{{ false }}">
+<div class="card" style="padding: 16px; display: flex; align-items: center; gap: 12px; border-color: #e9c25a">
+<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#e9c25a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"></path><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"></path></svg>
+<div style="flex: 1 1 auto"><div class="lbl">Fim de jogo</div><div class="disp" style="font-size: 20px; font-weight: 800">{{gv.winnerText}}</div></div>
+<button type="button" class="btn btn-pri btn-sm" onClick="{{goOver}}">RESULTADO</button>
+</div>
+</sc-if>
+<sc-for list="{{gv.players}}" as="pl" hint-placeholder-count="4">
+<div class="card {{pl.cardCls}}" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span class="dot bg-{{pl.lvl}}"></span>
+<div class="disp" style="flex: 1 1 auto; font-size: 19px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{pl.name}}</div>
+<div class="tx-{{pl.lvl}}" style="font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase">{{pl.lvlLabel}}</div>
+</div>
+<div style="display: flex; gap: 5px">
+<sc-for list="{{pl.tiles}}" as="t" hint-placeholder-count="7"><div class="tile {{t.cls}}" style="animation-delay: {{t.delay}}">{{t.ch}}</div></sc-for>
+<div class="mu" style="margin-left: auto; align-self: center; font-size: 14px; font-weight: 700">{{pl.count}}</div>
+</div>
+</div>
+</sc-for>
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px; margin-top: 4px">
+<div style="display: flex; justify-content: space-between; align-items: center"><div class="lbl">Ranking</div><div class="mu" style="font-size: 12px; font-weight: 600">atualizado a cada rodada</div></div>
+<sc-for list="{{gv.ranking}}" as="rk" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 36px">
+<div class="medal {{rk.medal}}">{{rk.pos}}</div>
+<div style="flex: 1 1 auto; font-weight: 700; font-size: 16px">{{rk.name}}</div>
+<div class="tx-{{rk.lvl}}" style="font-weight: 800; font-size: 14px">{{rk.letters}}</div>
+</div>
+</sc-for>
+<sc-if value="{{gv.ongoing}}" hint-placeholder-val="{{ true }}"><div class="mu" style="font-size: 13px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 10px">Menos letras não garante vitória: só vence quem for o último jogador ativo.</div></sc-if>
+</div>
+</div>
+<sc-if value="{{gv.ongoing}}" hint-placeholder-val="{{ true }}">
+<div style="padding: 10px 16px; flex: none; background: var(--bg)">
+<button type="button" class="btn btn-pri btn-xl" onClick="{{openRegister}}" style="width: 100%"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>REGISTRAR RODADA</button>
+</div>
+</sc-if>
+</sc-if>
+
+<!-- HISTÓRICO -->
+<sc-if value="{{tabHist}}" hint-placeholder-val="{{ false }}">
+<div class="scroll" style="padding: 6px 16px 20px; display: flex; flex-direction: column; gap: 10px">
+<div class="lbl" style="margin: 4px 0 2px">Histórico de rodadas</div>
+<sc-if value="{{gv.noRounds}}" hint-placeholder-val="{{ false }}"><div class="card mu" style="padding: 18px; text-align: center; font-weight: 600">Nenhuma rodada registrada ainda.</div></sc-if>
+<sc-for list="{{gv.history}}" as="h" hint-placeholder-count="3">
+<div class="card" style="overflow: hidden">
+<button type="button" onClick="{{h.toggle}}" aria-expanded="{{h.open}}" style="appearance: none; width: 100%; border: 0; background: transparent; color: var(--tx); font: inherit; display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; text-align: left; min-height: 60px">
+<div style="flex: 1 1 auto">
+<div class="disp" style="font-size: 18px; font-weight: 800">RODADA {{h.number}}</div>
+<div class="mu" style="font-size: 13px; font-weight: 600">{{h.sub}}</div>
+</div>
+<div style="font-weight: 800; font-size: 14px">{{h.summary}}</div>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate({{h.rot}}); transition: transform .2s"><path d="M6 9l6 6 6-6"></path></svg>
+</button>
+<sc-if value="{{h.open}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 0 16px 14px; display: flex; flex-direction: column; gap: 8px">
+<sc-if value="{{h.seatLine}}" hint-placeholder-val="{{ false }}"><div style="font-size: 13px; font-weight: 700; line-height: 1.45">{{h.seatLine}}<br><span class="mu" style="font-weight: 600">{{h.orderLine}}</span></div></sc-if>
+<sc-for list="{{h.rows}}" as="hr" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line)">
+<div style="flex: 1 1 auto; font-weight: 700">{{hr.name}}</div>
+<div class="mu" style="font-size: 14px; font-weight: 600">{{hr.detail}}</div>
+<div class="{{hr.cls}}" style="min-width: 46px; text-align: right; font-weight: 800">{{hr.res}}</div>
+</div>
+</sc-for>
+<div style="display: flex; gap: 8px; margin-top: 4px">
+<button type="button" class="btn btn-sec btn-sm" onClick="{{h.edit}}" style="flex: 1 1 auto"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"></path></svg>EDITAR RODADA</button>
+<sc-if value="{{h.last}}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-sec btn-sm" onClick="{{askUndo}}" style="flex: 1 1 auto">DESFAZER</button></sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{gv.hasLog}}" hint-placeholder-val="{{ false }}">
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 8px; margin-top: 6px">
+<div class="lbl">Registro de alterações</div>
+<sc-for list="{{gv.log}}" as="lg" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px">
+<div style="font-weight: 700">{{lg.action}}</div>
+<div class="mu" style="font-size: 13px">{{lg.detail}}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<!-- EVOLUÇÃO -->
+<sc-if value="{{tabTime}}" hint-placeholder-val="{{ false }}">
+<div class="scroll" style="padding: 6px 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<div class="lbl" style="margin: 4px 0 0">Linha do tempo · letras acumuladas</div>
+<sc-if value="{{gv.noRounds}}" hint-placeholder-val="{{ false }}"><div class="card mu" style="padding: 18px; text-align: center; font-weight: 600">A evolução aparece após a primeira rodada.</div></sc-if>
+<sc-if value="{{gv.hasRounds}}" hint-placeholder-val="{{ true }}">
+<div class="card" style="padding: 14px 0 14px 14px; overflow-x: auto">
+<div style="display: flex; flex-direction: column; gap: 8px; width: max-content; padding-right: 14px">
+<div style="display: flex; align-items: center; gap: 4px">
+<div class="mu" style="width: 84px; flex: none; font-size: 11px; font-weight: 800; letter-spacing: .08em">RODADA</div>
+<sc-for list="{{gv.roundNums}}" as="rn" hint-placeholder-count="5"><div class="cell mu" style="font-size: 12px">{{rn}}</div></sc-for>
+</div>
+<sc-for list="{{gv.timeline}}" as="tl" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 4px">
+<div style="width: 84px; flex: none; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{tl.name}}</div>
+<sc-for list="{{tl.cells}}" as="c" hint-placeholder-count="5"><div class="cell {{c.cls}}" title="{{c.title}}">{{c.txt}}</div></sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+<div class="mu" style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; font-weight: 700">
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot bg-ok"></span>0–2</span>
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot bg-warn"></span>3–4</span>
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot bg-risk"></span>5–6</span>
+<span style="display: flex; align-items: center; gap: 6px"><span class="dot bg-dead"></span>7 · eliminado</span>
+</div>
+<sc-for list="{{gv.timelineText}}" as="tt" hint-placeholder-count="3">
+<div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-weight: 800">{{tt.name}}</div>
+<div class="mu" style="font-size: 14px; line-height: 1.55">{{tt.text}}</div>
+</div>
+</sc-for>
+</sc-if>
+</div>
+</sc-if>
+
+<!-- ESTATÍSTICAS -->
+<sc-if value="{{tabStats}}" hint-placeholder-val="{{ false }}">
+<div class="scroll" style="padding: 6px 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<div class="lbl" style="margin: 4px 0 0">Jogadores</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<div class="card" style="padding: 12px"><div class="disp" style="font-size: 26px; font-weight: 800">{{st.total}}</div><div class="mu" style="font-size: 12px; font-weight: 700">no jogo</div></div>
+<div class="card" style="padding: 12px"><div class="disp" style="font-size: 26px; font-weight: 800">{{st.elim}}</div><div class="mu" style="font-size: 12px; font-weight: 700">eliminados</div></div>
+<div class="card" style="padding: 12px"><div class="disp" style="font-size: 17px; font-weight: 800; line-height: 1.55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{st.winner}}</div><div class="mu" style="font-size: 12px; font-weight: 700">vencedor</div></div>
+</div>
+<div class="lbl" style="margin-top: 6px">Palpites</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+<div class="card" style="padding: 12px 10px"><div class="disp" style="font-size: 24px; font-weight: 800">{{st.bids}}</div><div class="mu" style="font-size: 12px; font-weight: 700">total</div></div>
+<div class="card" style="padding: 12px 10px"><div class="disp tx-ok" style="font-size: 24px; font-weight: 800">{{st.hits}}</div><div class="mu" style="font-size: 12px; font-weight: 700">acertos</div></div>
+<div class="card" style="padding: 12px 10px"><div class="disp tx-dead" style="font-size: 24px; font-weight: 800">{{st.errs}}</div><div class="mu" style="font-size: 12px; font-weight: 700">erros</div></div>
+<div class="card" style="padding: 12px 10px"><div class="disp" style="font-size: 24px; font-weight: 800">{{st.rate}}</div><div class="mu" style="font-size: 12px; font-weight: 700">acerto</div></div>
+</div>
+<div class="lbl" style="margin-top: 6px">Por jogador</div>
+<div class="card" style="padding: 6px 14px">
+<div class="mu" style="display: grid; grid-template-columns: minmax(0, 1fr) 54px 48px 48px 54px; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; padding: 8px 0">
+<div>JOGADOR</div><div style="text-align: right">ACERTO</div><div style="text-align: right">VAZAS</div><div style="text-align: right">LETRAS</div><div style="text-align: right">SAIU</div>
+</div>
+<sc-for list="{{st.players}}" as="sx" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 54px 48px 48px 54px; gap: 6px; font-size: 14px; padding: 10px 0; border-top: 1px solid var(--line); align-items: center">
+<div style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sx.name}}</div>
+<div style="text-align: right; font-weight: 700">{{sx.hits}}</div>
+<div style="text-align: right; font-weight: 700">{{sx.tricks}}</div>
+<div style="text-align: right; font-weight: 700">{{sx.recv}}</div>
+<div class="mu" style="text-align: right; font-weight: 700">{{sx.out}}</div>
+</div>
+</sc-for>
+</div>
+<div class="lbl" style="margin-top: 6px">Vazas e letras</div>
+<div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+<div class="mu" style="font-size: 13px; font-weight: 700">Maior número de vazas em uma rodada</div>
+<div style="font-weight: 800; font-size: 16px">{{st.maxTricks}}</div>
+<div class="mu" style="font-size: 13px; font-weight: 700; margin-top: 8px">Média de letras distribuídas por rodada</div>
+<div style="font-weight: 800; font-size: 16px">{{st.avg}}</div>
+</div>
+<sc-if value="{{gv.hasRounds}}" hint-placeholder-val="{{ true }}">
+<div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+<div class="mu" style="font-size: 13px; font-weight: 700">Letras distribuídas por rodada</div>
+<sc-for list="{{st.perRound}}" as="pr" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 10px">
+<div class="mu" style="width: 28px; font-size: 13px; font-weight: 800">R{{pr.n}}</div>
+<div style="flex: 1 1 auto; height: 10px; border-radius: 5px; background: var(--sf2)"><div class="bar" style="width: {{pr.w}}"></div></div>
+<div style="width: 24px; text-align: right; font-weight: 800; font-size: 14px">{{pr.v}}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<nav class="tabbar" aria-label="Seções da partida">
+<button type="button" class="tab {{tabCls.mesa}}" onClick="{{tabGo.mesa}}"><span class="tab-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="6" width="11" height="15" rx="2"></rect><path d="M9 3h9a2 2 0 0 1 2 2v12"></path></svg></span>Mesa</button>
+<button type="button" class="tab {{tabCls.hist}}" onClick="{{tabGo.hist}}"><span class="tab-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.7"></path><path d="M4 4v4.7h4.7M12 8v4l3 2"></path></svg></span>Histórico</button>
+<button type="button" class="tab {{tabCls.time}}" onClick="{{tabGo.time}}"><span class="tab-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-6 4 3 7-9"></path></svg></span>Evolução</button>
+<button type="button" class="tab {{tabCls.stats}}" onClick="{{tabGo.stats}}"><span class="tab-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 20V11M12 20V5M18 20v-6"></path></svg></span>Números</button>
+</nav>
+</sc-if>
+
+<!-- ============ REGISTRAR RODADA (2 etapas) ============ -->
+<sc-if value="{{isReg}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 6px; padding: 10px 8px 4px; flex: none">
+<button type="button" class="icon-btn" aria-label="Cancelar rodada" onClick="{{cancelEntry}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+<div style="flex: 1 1 auto; min-width: 0">
+<div class="disp" style="font-size: 21px; font-weight: 800; line-height: 1.1">{{rv.title}}</div>
+<div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap">
+<span class="lbl" style="letter-spacing: .06em; color: var(--tx)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true" style="vertical-align: -1px"><rect x="4" y="6" width="11" height="15" rx="2"></rect><path d="M9 3h9a2 2 0 0 1 2 2v12"></path></svg> {{rv.cardsLabel}}</span>
+<span class="lbl" style="letter-spacing: .06em">· {{rv.stageLabel}}</span>
+</div>
+</div>
+<sc-if value="{{rv.showCards}}" hint-placeholder-val="{{ false }}">
+<div class="step" aria-label="Cartas da rodada">
+<button type="button" aria-label="Menos cartas" onClick="{{rv.cardsDec}}" disabled="{{rv.cardsAtMin}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path></svg></button>
+<div class="v" style="font-size: 20px">{{rv.cards}}</div>
+<button type="button" aria-label="Mais cartas" onClick="{{rv.cardsInc}}" disabled="{{rv.cardsAtMax}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+</sc-if>
+</div>
+<div class="steps" aria-label="Etapas da rodada">
+<sc-for list="{{rv.steps}}" as="sx2" hint-placeholder-count="3"><span class="stp {{sx2.cls}}">{{sx2.mark}} {{sx2.label}}</span><sc-if value="{{sx2.arrow}}" hint-placeholder-val="{{ true }}"><span class="mu" aria-hidden="true">→</span></sc-if></sc-for>
+</div>
+<div style="padding: 0 16px 8px; flex: none; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg><span class="mu" style="letter-spacing: .08em">COMEÇA COM</span> {{rv.starter}} <span class="mu" style="font-weight: 700; margin-left: auto">{{rv.dir}}</span></div>
+<div class="seats"><sc-for list="{{rv.seats}}" as="se" hint-placeholder-count="4"><span class="seat {{se.cls}}"><sc-if value="{{se.first}}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-label="começa"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.5"></circle></svg></sc-if>{{se.name}}</span><sc-if value="{{se.arrow}}" hint-placeholder-val="{{ true }}"><span class="mu" style="font-size: 12px" aria-hidden="true">→</span></sc-if></sc-for></div>
+</div>
+
+<!-- ETAPA 1: PALPITES — todos os jogadores numa única tela -->
+<sc-if value="{{rv.isBids}}" hint-placeholder-val="{{ true }}">
+<div class="scroll" style="padding: 4px 16px 12px; display: flex; flex-direction: column; gap: 8px">
+<sc-if value="{{rv.testa}}" hint-placeholder-val="{{ false }}"><div class="card" style="padding: 10px 14px; font-size: 13px; line-height: 1.4"><span style="font-weight: 800">Carta na testa.</span> <span class="mu">Palpite pelo que vê na testa dos outros.</span></div></sc-if>
+<div class="card" style="padding: 4px 12px">
+<sc-for list="{{rv.bidList}}" as="bl" hint-placeholder-count="4">
+<div class="prow {{bl.cls}}">
+<div style="display: flex; align-items: center; gap: 8px">
+<div class="pnum">{{bl.num}}</div>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px">
+<span style="font-weight: 800; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{bl.name}}</span>
+<sc-if value="{{bl.first}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-label="começa" style="flex: none; color: var(--ac)"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.5"></circle></svg></sc-if>
+</div>
+<div class="step">
+<button type="button" aria-label="Diminuir palpite de {{bl.name}}" onClick="{{bl.dec}}" disabled="{{bl.decDis}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path></svg></button>
+<button type="button" class="vbtn" onClick="{{bl.tap}}" aria-label="{{bl.aria}} — toque para aumentar">{{bl.bid}}</button>
+<button type="button" aria-label="Aumentar palpite de {{bl.name}}" onClick="{{bl.inc}}" disabled="{{bl.incDis}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+</div>
+<sc-if value="{{bl.forbShow}}" hint-placeholder-val="{{ false }}">
+<div class="forb-line"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6l12.8 12.8"></path></svg>Não pode fazer: <b class="disp" style="font-size: 18px">{{bl.forb}}</b></div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{rv.bidListErr}}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size: 14px; font-weight: 700; color: var(--dead); text-align: center; line-height: 1.4">{{rv.bidListErr}}</div></sc-if>
+<div class="mu" style="font-size: 12px; text-align: center; line-height: 1.4">O total dos palpites não pode ser igual ao número de cartas da rodada.</div>
+</div>
+<div style="padding: 10px 16px 16px; border-top: 1px solid var(--line); background: var(--sf); display: flex; flex-direction: column; gap: 10px; flex: none">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<div class="pv"><span class="mu" style="font-size: 11px; font-weight: 800; letter-spacing: .08em">TOTAL DOS PALPITES</span><b aria-live="polite">{{rv.bidTotal}}</b></div>
+<div class="pv" style="border: 1.5px solid var(--dead)"><span class="mu" style="font-size: 11px; font-weight: 800; letter-spacing: .08em">ÚLTIMO · {{rv.lastName}}</span><b class="tx-dead" style="font-size: 16px; line-height: 1.35" aria-live="polite">{{rv.lastInfo}}</b></div>
+</div>
+<button type="button" class="btn btn-pri btn-xl" onClick="{{rv.confirmBids}}" disabled="{{rv.confirmBidsDis}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"></path></svg>CONFIRMAR PALPITES</button>
+</div>
+</sc-if>
+
+<!-- ETAPA 2: VAZAS REALIZADAS — todos os jogadores numa única tela -->
+<sc-if value="{{rv.isTricks}}" hint-placeholder-val="{{ false }}">
+<div class="scroll" style="padding: 4px 16px 12px; display: flex; flex-direction: column; gap: 8px">
+<div class="card" style="padding: 4px 12px">
+<div class="mu" style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px 136px; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 10px 0 6px">
+<div></div><div>JOGADOR</div><div style="text-align: center">PALPITE</div><div style="text-align: center">FEZ</div>
+</div>
+<sc-for list="{{rv.trickList}}" as="tl2" hint-placeholder-count="4">
+<div class="prow" style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px 136px; gap: 6px; align-items: center">
+<div class="pnum">{{tl2.num}}</div>
+<div style="font-weight: 800; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{tl2.name}}</div>
+<div class="disp mu" style="text-align: center; font-weight: 800; font-size: 20px" aria-label="Palpite {{tl2.bid}}">{{tl2.bid}}</div>
+<div class="step">
+<button type="button" aria-label="Diminuir vazas de {{tl2.name}}" onClick="{{tl2.dec}}" disabled="{{tl2.decDis}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path></svg></button>
+<button type="button" class="vbtn {{tl2.cls}}" onClick="{{tl2.inc}}" disabled="{{tl2.incDis}}" aria-label="{{tl2.aria}} — toque para somar uma vaza">{{tl2.tricks}}</button>
+<button type="button" aria-label="Aumentar vazas de {{tl2.name}}" onClick="{{tl2.inc}}" disabled="{{tl2.incDis}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+</div>
+</sc-for>
+</div>
+<div class="mu" style="font-size: 12px; text-align: center; line-height: 1.4">Toque em + no jogador que ganhou cada vaza. Os palpites estão travados.</div>
+</div>
+<div style="padding: 10px 16px 16px; border-top: 1px solid var(--line); background: var(--sf); display: flex; flex-direction: column; gap: 10px; flex: none">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<div class="pv"><span class="mu" style="font-size: 11px; font-weight: 800; letter-spacing: .08em">VAZAS</span><b aria-live="polite">{{rv.trCount}}</b></div>
+<div class="pv"><span class="mu" style="font-size: 11px; font-weight: 800; letter-spacing: .08em">FALTAM</span><b class="{{rv.trickOkCls}}" aria-live="polite">{{rv.trLeft}}</b></div>
+</div>
+<button type="button" class="btn btn-pri btn-xl" onClick="{{rv.toResult}}" disabled="{{rv.cantResult}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"></path></svg>FINALIZAR RODADA</button>
+</div>
+</sc-if>
+</sc-if>
+
+<!-- ============ CONFIRMAÇÃO ============ -->
+<sc-if value="{{isConf}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 6px; padding: 12px 8px 6px; flex: none">
+<button type="button" class="icon-btn" aria-label="Voltar e corrigir vazas" onClick="{{rv.backToTrickSum}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<div style="flex: 1 1 auto">
+<div class="lbl">{{cv.sub}}</div>
+<div class="disp" style="font-size: 22px; font-weight: 800">RESULTADO DA RODADA</div>
+</div>
+</div>
+<div class="steps" aria-label="Etapas da rodada">
+<sc-for list="{{rv.steps}}" as="sx3" hint-placeholder-count="3"><span class="stp {{sx3.cls}}">{{sx3.mark}} {{sx3.label}}</span><sc-if value="{{sx3.arrow}}" hint-placeholder-val="{{ true }}"><span class="mu" aria-hidden="true">→</span></sc-if></sc-for>
+</div>
+<div class="scroll" style="padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 10px">
+<div class="mu" style="font-size: 13px; font-weight: 700; text-align: center">Começou: {{rv.starter}} · {{rv.dir}}</div>
+<sc-for list="{{cv.rows}}" as="c" hint-placeholder-count="4">
+<div class="card rise {{c.fx}}" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; animation-delay: {{c.delay}}">
+<div style="display: flex; align-items: center; gap: 10px">
+<div class="disp" style="flex: 1 1 auto; font-size: 18px; font-weight: 800">{{c.name}}</div>
+<div class="{{c.resCls}}" style="font-weight: 800; font-size: 15px">{{c.res}}</div>
+</div>
+<div class="mu" style="font-size: 14px; font-weight: 600">{{c.detail}}</div>
+<div style="display: flex; gap: 4px"><sc-for list="{{c.tiles}}" as="ct" hint-placeholder-count="7"><div class="tile tile-sm {{ct.cls}}" style="animation-delay: {{ct.delay}}">{{ct.ch}}</div></sc-for></div>
+</div>
+</sc-for>
+<div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div class="lbl" style="margin-bottom: 4px">Letras recebidas</div>
+<sc-for list="{{cv.letters}}" as="lt" hint-placeholder-count="4"><div style="display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); font-weight: 700"><span>{{lt.name}}</span><span class="{{lt.cls}}" style="font-weight: 800">{{lt.val}}</span></div></sc-for>
+</div>
+<sc-if value="{{cv.note}}" hint-placeholder-val="{{ false }}"><div class="card" style="padding: 12px 14px; font-size: 14px; font-weight: 700; border-color: var(--warn); color: var(--warn)">{{cv.note}}</div></sc-if>
+</div>
+<div style="padding: 12px 16px 18px; border-top: 1px solid var(--line); background: var(--sf); display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; flex: none">
+<button type="button" class="btn btn-sec btn-xl" onClick="{{rv.backToTrickSum}}" style="font-size: 15px">CORRIGIR</button>
+<button type="button" class="btn btn-pri btn-xl" onClick="{{confirmRound}}" style="font-size: 16px; padding: 0 12px">CONFIRMAR RESULTADO</button>
+</div>
+</sc-if>
+
+<!-- ============ BACKUP E DADOS ============ -->
+<sc-if value="{{isData}}">
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px; flex: none">
+<button type="button" class="icon-btn" aria-label="Voltar" onClick="{{dt.back}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<div class="disp" style="font-size: 22px; font-weight: 800">BACKUP E DADOS</div>
+</div>
+<div class="scroll" style="padding: 8px 16px 24px; display: flex; flex-direction: column; gap: 14px">
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 8px">
+<div class="lbl">Armazenamento local</div>
+<div style="font-weight: 800; font-size: 17px">{{dt.count}}</div>
+<p class="mu" style="margin: 0; font-size: 14px; line-height: 1.5">As partidas ficam salvas só neste aparelho, neste navegador, e são gravadas automaticamente a cada jogada. Nada é enviado para a internet. Não existe sincronização automática entre aparelhos.</p>
+<sc-if value="{{dt.persistWarn}}"><p role="alert" class="tx-risk" style="margin: 0; font-size: 14px; font-weight: 700; line-height: 1.45">Este navegador está bloqueando o armazenamento (aba anônima ou dados bloqueados). As partidas vão se perder ao fechar. Abra em uma aba normal.</p></sc-if>
+</div>
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<div class="lbl">Backup</div>
+<p class="mu" style="margin: 0; font-size: 14px; line-height: 1.5">Para guardar uma cópia ou levar as partidas para outro aparelho, exporte um arquivo e importe-o no outro aparelho.</p>
+<button type="button" class="btn btn-pri" onClick="{{dt.exp}}" disabled="{{dt.noGames}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>EXPORTAR PARTIDAS</button>
+<label class="btn btn-sec file-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"></path></svg>IMPORTAR BACKUP<input type="file" accept="application/json,.json" onChange="{{dt.imp}}" aria-label="Escolher arquivo de backup (.json)"></label>
+<sc-if value="{{dt.msg}}"><div role="status" class="{{dt.msgCls}}" style="font-size: 14px; font-weight: 700; line-height: 1.45">{{dt.msg}}</div></sc-if>
+<p class="mu" style="margin: 0; font-size: 13px; line-height: 1.45">Importar nunca apaga nem sobrescreve partidas deste aparelho. Uma partida que já existe com outro conteúdo entra como cópia.</p>
+</div>
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px; border-color: rgba(255,123,123,.4)">
+<div class="lbl">Zona de perigo</div>
+<button type="button" class="btn btn-sec" onClick="{{dt.wipe}}" disabled="{{dt.noGames}}" style="color: var(--dead)">APAGAR TODOS OS DADOS</button>
+</div>
+<div class="mu" style="font-size: 12px; text-align: center">{{dt.version}}</div>
+</div>
+</sc-if>
+
+<!-- ============ RODADA CONCLUÍDA ============ -->
+<sc-if value="{{isDone}}" hint-placeholder-val="{{ false }}">
+<div class="scroll" style="padding: 48px 16px 16px; display: flex; flex-direction: column; align-items: center; gap: 16px">
+<div class="rise" style="width: 64px; height: 64px; border-radius: 50%; background: var(--ac); color: var(--acInk); display: flex; align-items: center; justify-content: center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></div>
+<div class="disp rise" style="font-size: 26px; font-weight: 800; text-align: center">{{dn.title}}</div>
+<div class="card rise" style="width: 100%; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; gap: 12px; animation-delay: .08s">
+<div style="display: flex; justify-content: space-between; gap: 10px"><span class="mu" style="font-weight: 700">Começou</span><span style="font-weight: 800">{{dn.began}}</span></div>
+<div style="display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px"><span class="mu" style="font-weight: 700">Próximo a começar</span><span style="font-weight: 800">{{dn.next}}</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px"><span class="mu" style="font-weight: 700">Próxima rodada</span><span style="font-weight: 800">{{dn.nextCards}}</span></div>
+<sc-if value="{{dn.tag}}" hint-placeholder-val="{{ false }}"><div style="display: flex; justify-content: flex-end"><span class="tag">{{dn.tag}}</span></div></sc-if>
+<div style="border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px">
+<span class="lbl">Ordem da {{dn.nextLabel}}</span>
+<div class="seats" style="padding: 0"><sc-for list="{{dn.seats}}" as="ds" hint-placeholder-count="4"><span class="seat {{ds.cls}}"><sc-if value="{{ds.first}}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-label="começa"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.5"></circle></svg></sc-if>{{ds.name}}</span><sc-if value="{{ds.arrow}}" hint-placeholder-val="{{ true }}"><span class="mu" style="font-size: 12px" aria-hidden="true">→</span></sc-if></sc-for></div>
+</div>
+</div>
+</div>
+<div style="padding: 12px 16px 18px; display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; flex: none">
+<button type="button" class="btn btn-sec btn-xl" onClick="{{goMesa2}}" style="font-size: 15px">VER MESA</button>
+<button type="button" class="btn btn-pri btn-xl" onClick="{{nextRound}}" style="font-size: 16px; padding: 0 12px"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"></path></svg>PRÓXIMA RODADA</button>
+</div>
+</sc-if>
+
+<!-- ============ CONFIGURAÇÕES ============ -->
+<sc-if value="{{isSet}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px; flex: none">
+<button type="button" class="icon-btn" aria-label="Voltar" onClick="{{backToGame}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<div class="disp" style="font-size: 22px; font-weight: 800">CONFIGURAÇÕES</div>
+</div>
+<div class="scroll" style="padding: 8px 16px 28px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label class="lbl" for="sname">Nome do jogo</label>
+<input id="sname" class="field" type="text" value="{{sv.name}}" onChange="{{sv.setName}}">
+</div>
+<div class="card" style="padding: 16px">
+<label class="check">
+<input type="checkbox" checked="{{sv.testa}}" onChange="{{sv.toggleTesta}}" disabled="{{sv.locked}}">
+<span style="display: flex; flex-direction: column; gap: 3px"><span style="font-weight: 800">Carta na testa na primeira rodada</span><span class="mu" style="font-size: 13px">{{sv.lockNote}}</span></span>
+</label>
+</div>
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<div><div style="font-weight: 800">Carta inicial</div><div class="mu" style="font-size: 13px">Início de cada ciclo de rodadas</div></div>
+<div class="step"><button type="button" aria-label="Menos" onClick="{{sv.startDec}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path></svg></button><div class="v">{{sv.startCards}}</div><button type="button" aria-label="Mais" onClick="{{sv.startInc}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button></div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px">
+<div><div style="font-weight: 800">Crescimento</div><div class="mu" style="font-size: 13px">Cartas a mais por rodada</div></div>
+<div class="step"><button type="button" aria-label="Menos" onClick="{{sv.stepDec}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path></svg></button><div class="v">+{{sv.step}}</div><button type="button" aria-label="Mais" onClick="{{sv.stepInc}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button></div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px">
+<div><div style="font-weight: 800">Máximo</div><div class="mu" style="font-size: 13px">{{sv.maxSub}}</div></div>
+<div style="font-weight: 800; text-align: right">{{sv.maxText}}</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px">
+<div style="font-weight: 800">Após atingir o máximo</div>
+<div style="display: flex; align-items: center; gap: 6px; font-weight: 800"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6L20 8.7"></path><path d="M20 4v4.7h-4.7"></path></svg>{{sv.restartText}}</div>
+</div>
+<div class="pv"><span class="mu" style="font-size: 12px; font-weight: 800; letter-spacing: .1em">CICLO DE RODADAS</span><span style="font-weight: 800; font-size: 16px">{{sv.cycle}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px">
+<div style="font-weight: 800">Limite de cartas</div>
+<sc-for list="{{sv.limitOpts}}" as="o" hint-placeholder-count="2"><button type="button" class="chip {{o.cls}}" onClick="{{o.pick}}" style="text-align: left; padding: 10px 14px">{{o.label}}</button></sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px">
+<div style="font-weight: 800">Baralho · cartas disponíveis</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{sv.deckOpts}}" as="o" hint-placeholder-count="6"><button type="button" class="chip {{o.cls}}" onClick="{{o.pick}}" style="padding: 0 6px">{{o.label}}</button></sc-for>
+</div>
+<sc-if value="{{sv.deckCustom}}" hint-placeholder-val="{{ false }}">
+<label class="mu" for="sdeck" style="font-size: 13px; font-weight: 700">Total de cartas (ex.: 2 baralhos de 40 = 80)</label>
+<div style="display: flex; gap: 8px">
+<input id="sdeck" class="field" type="number" inputmode="numeric" min="1" value="{{sv.deckValue}}" onChange="{{sv.setDeckCustom}}" onKeyDown="{{sv.deckKey}}" style="flex: 1 1 auto; min-width: 0">
+<button type="button" class="btn btn-sec" onClick="{{sv.applyDeck}}" style="flex: none">APLICAR</button>
+</div>
+</sc-if>
+</div>
+</div>
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 14px">
+<div style="font-weight: 800">Regras de letras</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div class="mu" style="font-size: 13px; font-weight: 700">Letras por erro</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<sc-for list="{{sv.modeOpts}}" as="o" hint-placeholder-count="2"><button type="button" class="chip {{o.cls}}" onClick="{{o.pick}}" disabled="{{sv.locked}}">{{o.label}}</button></sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div class="mu" style="font-size: 13px; font-weight: 700">Quando o erro passa de FODINHA</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{sv.overOpts}}" as="o" hint-placeholder-count="2"><button type="button" class="chip {{o.cls}}" onClick="{{o.pick}}" disabled="{{sv.locked}}" style="text-align: left; padding: 10px 14px; line-height: 1.35">{{o.label}}</button></sc-for>
+</div>
+</div>
+<div class="mu" style="font-size: 13px">{{sv.lockNote}}</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="lbl">Tema visual</div>
+<sc-for list="{{sv.themes}}" as="th" hint-placeholder-count="5">
+<button type="button" onClick="{{th.pick}}" aria-pressed="{{th.on}}" class="card" style="appearance: none; display: flex; align-items: center; gap: 14px; padding: 10px 14px; min-height: 60px; cursor: pointer; font: inherit; color: var(--tx); text-align: left; border-width: 2px; border-color: {{th.border}}">
+<div style="display: flex; flex: none; width: 44px; height: 32px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,.2)"><div style="flex: 1 1 auto; background: {{th.a}}"></div><div style="flex: 1 1 auto; background: {{th.b}}"></div><div style="flex: 1 1 auto; background: {{th.c}}"></div></div>
+<div style="flex: 1 1 auto; font-weight: 800">{{th.name}}</div>
+<sc-if value="{{th.on}}" hint-placeholder-val="{{ false }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"></path></svg></sc-if>
+</button>
+</sc-for>
+</div>
+<div class="card" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<div><div style="font-weight: 800">Máximo de jogadores</div><div class="mu" style="font-size: 13px">Padrão para novos jogos (1 baralho)</div></div>
+<div class="step"><button type="button" aria-label="Menos" onClick="{{sv.maxDec}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path></svg></button><div class="v">{{sv.maxPlayers}}</div><button type="button" aria-label="Mais" onClick="{{sv.maxInc}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button></div>
+</div>
+</div>
+</sc-if>
+
+<!-- ============ FIM DE JOGO ============ -->
+<sc-if value="{{isOver}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; overflow: hidden; pointer-events: none">
+<sc-for list="{{confetti}}" as="cf" hint-placeholder-count="0"><span class="confetti {{cf.cls}}" style="left: {{cf.left}}; animation-delay: {{cf.delay}}; animation-duration: {{cf.dur}}"></span></sc-for>
+<div class="fly fly1">♠</div><div class="fly fly2" style="color: #c0302b">♥</div><div class="fly fly3">♣</div><div class="fly fly4" style="color: #c0302b">♦</div><div class="fly fly5">♠</div>
+</div>
+<div class="scroll" style="padding: 40px 20px 20px; display: flex; flex-direction: column; align-items: center; gap: 18px; position: relative; z-index: 4">
+<svg class="trophy" width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="#e9c25a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" fill="rgba(233,194,90,.18)"></path><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"></path></svg>
+<div class="disp banner" style="font-size: 34px; font-weight: 800; letter-spacing: .02em">FIM DE JOGO!</div>
+<div class="banner" style="display: flex; flex-direction: column; align-items: center; gap: 4px; animation-delay: 1.05s">
+<div class="lbl">{{ov.winLabel}}</div>
+<div class="disp" style="font-size: 40px; font-weight: 800; color: var(--ac); text-align: center; line-height: 1.05">{{ov.winner}}</div>
+<div class="mu" style="font-weight: 700">{{ov.sub}}</div>
+</div>
+<div class="card banner" style="padding: 14px 16px; text-align: center; font-weight: 800; font-size: 16px; animation-delay: 1.2s">{{ov.shout}}</div>
+<div class="card banner" style="width: 100%; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; gap: 10px; animation-delay: 1.35s">
+<div class="lbl">Classificação final</div>
+<sc-for list="{{ov.ranking}}" as="fr" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 36px">
+<div class="medal {{fr.medal}}">{{fr.pos}}</div>
+<div style="flex: 1 1 auto; font-weight: 700; font-size: 16px">{{fr.name}}</div>
+<div class="mu" style="font-size: 13px; font-weight: 700">{{fr.note}}</div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="padding: 12px 16px 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; flex: none; position: relative; z-index: 4">
+<button type="button" class="btn btn-sec btn-xl" onClick="{{viewFinished}}" style="font-size: 16px">VER PARTIDA</button>
+<button type="button" class="btn btn-pri btn-xl" onClick="{{goHome}}" style="font-size: 16px">INÍCIO</button>
+</div>
+</sc-if>
+
+<!-- ============ PLACAR EXPANDIDO (sobreposto) ============ -->
+<sc-if value="{{placarOpen}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; z-index: 45; display: flex; flex-direction: column; justify-content: flex-end">
+<button type="button" aria-label="Minimizar placar" onClick="{{minPlacar}}" style="position: absolute; inset: 0; border: 0; background: rgba(0,0,0,.55); cursor: pointer; animation: fadein .2s both"></button>
+<div class="psheet" role="dialog" aria-label="Placar">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="flex: 1 1 auto">
+<div class="disp" style="font-size: 24px; font-weight: 800">PLACAR</div>
+<div class="mu" style="font-size: 13px; font-weight: 700">{{pl.info}}</div>
+</div>
+<button type="button" class="btn btn-sec btn-sm" onClick="{{minPlacar}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>MINIMIZAR</button>
+</div>
+<div style="overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{pl.alive}}" as="pa" hint-placeholder-count="4">
+<div class="card {{pa.cls}}" style="padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-radius: 14px">
+<div style="display: flex; align-items: center; gap: 8px">
+<span class="dot bg-{{pa.lvl}}"></span>
+<span style="flex: 1 1 auto; font-weight: 800; font-size: 16px">{{pa.name}}</span>
+<sc-if value="{{pa.danger}}" hint-placeholder-val="{{ false }}"><span class="tx-risk" style="font-size: 11px; font-weight: 800; letter-spacing: .08em">MAIS PERTO DA ELIMINAÇÃO</span></sc-if>
+<span class="mu" style="font-size: 13px; font-weight: 700">{{pa.count}}</span>
+</div>
+<div style="display: flex; gap: 4px"><sc-for list="{{pa.tiles}}" as="pt" hint-placeholder-count="7"><div class="tile tile-sm {{pt.cls}}">{{pt.ch}}</div></sc-for></div>
+</div>
+</sc-for>
+<sc-if value="{{pl.hasElim}}" hint-placeholder-val="{{ false }}">
+<div class="lbl" style="margin-top: 8px; padding-top: 10px; border-top: 1px dashed var(--line)">Eliminados</div>
+<sc-for list="{{pl.elim}}" as="pe" hint-placeholder-count="1">
+<div class="card gone-card" style="padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-radius: 14px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="flex: 1 1 auto; font-weight: 800; font-size: 16px">{{pe.name}} ×</span><span class="tx-dead" style="font-size: 11px; font-weight: 800; letter-spacing: .08em">{{pe.round}}</span></div>
+<div style="display: flex; gap: 4px"><sc-for list="{{pe.tiles}}" as="pt2" hint-placeholder-count="7"><div class="tile tile-sm {{pt2.cls}}">{{pt2.ch}}</div></sc-for></div>
+</div>
+</sc-for>
+</sc-if>
+</div>
+</div>
+</div>
+</sc-if>
+
+<!-- ============ ELIMINAÇÃO ============ -->
+<sc-if value="{{hasElim}}" hint-placeholder-val="{{ false }}">
+<div class="overlay" onClick="{{dismissElim}}">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 22px" class="shake">
+<sc-for list="{{elimNames}}" as="en" hint-placeholder-count="1"><div class="disp" style="font-size: 30px; font-weight: 800; color: var(--dead); text-align: center; line-height: 1.1">{{en}} FOI ELIMINADO!</div></sc-for>
+<div style="display: flex; gap: 6px">
+<div class="tile dead tile-lg flip" style="animation-delay: .05s">F</div><div class="tile dead tile-lg flip" style="animation-delay: .12s">O</div><div class="tile dead tile-lg flip" style="animation-delay: .19s">D</div><div class="tile dead tile-lg flip" style="animation-delay: .26s">I</div><div class="tile dead tile-lg flip" style="animation-delay: .33s">N</div><div class="tile dead tile-lg flip" style="animation-delay: .4s">H</div><div class="tile dead tile-lg flip" style="animation-delay: .47s">A</div>
+</div>
+<div style="color: #ddd; font-size: 14px; font-weight: 600">Toque para continuar</div>
+</div>
+</div>
+</sc-if>
+
+<!-- ============ MODAL ============ -->
+<sc-if value="{{hasModal}}" hint-placeholder-val="{{ false }}">
+<div class="overlay">
+<div class="sheet" role="dialog" aria-modal="true" style="display: flex; flex-direction: column; gap: 14px">
+<div class="disp" style="font-size: 22px; font-weight: 800; line-height: 1.2">{{md.title}}</div>
+<p class="mu" style="margin: 0; font-size: 15px; line-height: 1.45">{{md.text}}</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 6px">
+<button type="button" class="btn btn-sec" onClick="{{closeModal}}">CANCELAR</button>
+<button type="button" class="btn btn-danger" onClick="{{md.ok}}">{{md.okLabel}}</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{toast}}" hint-placeholder-val="{{ false }}"><div class="toast" role="status">{{toast}}</div></sc-if>
+</div>
+</template>
+
+<script src="assets/js/runtime.js"></script>
+<script src="assets/js/storage.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+/* Modo offline/instalável (PWA). Caminho relativo: funciona em usuario.github.io/nome-do-repositorio/. */
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('service-worker.js', { scope: './' }).catch(function (e) { console.warn('Service worker não registrado', e); });
+  });
+}
+</script>
+</body>
+</html>
