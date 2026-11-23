@@ -3,7 +3,7 @@
  * Ao publicar uma nova versão, aumente CACHE_VERSION para os aparelhos baixarem os arquivos novos.
  * Todos os caminhos são relativos à pasta do site (funciona em subdiretório do GitHub Pages).
  */
-var CACHE_VERSION = 'fodinha-v1.0.0';
+var CACHE_VERSION = 'fodinha-v1.1.1';
 var APP_FILES = [
   './',
   'index.html',

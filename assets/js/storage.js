@@ -6,7 +6,9 @@
  * (login, sincronização etc.) sem mexer no resto do aplicativo.
  *
  * Formato salvo (chave "fodinha.data"):
- *   { dataVersion: 1, updatedAt, seq, prefs, games: [ <partida>, ... ] }
+ *   { dataVersion: 1, updatedAt, seq, prefs, games: [ <partida>, ... ], players: [ { id, name }, ... ] }
+ *   "players" é a base geral de jogadores (independe das partidas; campo opcional,
+ *   ausente em dados antigos — nesse caso começa vazio).
  * Rascunho da rodada em andamento (chave "fodinha.draft"):
  *   { dataVersion: 1, gameId, entry, screen, roundsLen, at }
  */
@@ -51,10 +53,27 @@
     data.prefs = Object.assign({}, DEFAULT_PREFS, data.prefs || {});
     data.games = Array.isArray(data.games) ? data.games : [];
     data.seq = data.seq || 1;
+    data.players = cleanPlayers(data.players);
     return data;
   }
 
-  function emptyData() { return { dataVersion: DATA_VERSION, seq: 1, prefs: Object.assign({}, DEFAULT_PREFS), games: [] }; }
+  function emptyData() { return { dataVersion: DATA_VERSION, seq: 1, prefs: Object.assign({}, DEFAULT_PREFS), games: [], players: [] }; }
+
+  /* ---------- base geral de jogadores ---------- */
+  function normName(n) { return String(n || '').trim().replace(/\s+/g, ' '); }
+  function nameKey(n) { return normName(n).toLowerCase(); }
+  function cleanPlayers(list) {
+    var seen = {}, out = [];
+    (Array.isArray(list) ? list : []).forEach(function (p) {
+      var name = normName(p && typeof p === 'object' ? p.name : p);
+      if (!name || seen[nameKey(name)]) return;
+      seen[nameKey(name)] = 1;
+      out.push({ id: (p && p.id) || ('p' + Math.random().toString(36).slice(2, 10)), name: name });
+    });
+    return out;
+  }
+  /* Junta nomes novos à base (sem duplicar, sem diferenciar maiúsculas). Devolve a lista nova. */
+  function mergePlayers(base, names) { return cleanPlayers((base || []).concat((names || []).map(function (n) { return { name: n }; }))); }
 
   function loadAll() {
     try {
@@ -68,7 +87,7 @@
     return emptyData();
   }
   function saveAll(data) {
-    var d = { dataVersion: DATA_VERSION, updatedAt: new Date().toISOString(), seq: data.seq || 1, prefs: data.prefs || DEFAULT_PREFS, games: data.games || [] };
+    var d = { dataVersion: DATA_VERSION, updatedAt: new Date().toISOString(), seq: data.seq || 1, prefs: data.prefs || DEFAULT_PREFS, games: data.games || [], players: cleanPlayers(data.players) };
     return writeRaw(KEY, JSON.stringify(d));
   }
 
@@ -86,7 +105,9 @@
     d.games = d.games.filter(function (g) { return g.id !== id; });
     return saveAll(d);
   }
-  function saveMeta(seq, prefs) { var d = loadAll(); d.seq = seq; d.prefs = prefs; return saveAll(d); }
+  function saveMeta(seq, prefs, players) { var d = loadAll(); d.seq = seq; d.prefs = prefs; if (players) d.players = players; return saveAll(d); }
+  function listPlayers() { return loadAll().players; }
+  function savePlayers(players) { var d = loadAll(); d.players = players; return saveAll(d); }
   function clearAll() { removeRaw(KEY); removeRaw(DRAFT_KEY); LEGACY_KEYS.forEach(removeRaw); removeRaw(LEGACY_DRAFT); }
 
   /* ---------- rascunho da rodada em andamento ---------- */
@@ -107,6 +128,7 @@
       seq: d.seq,
       prefs: d.prefs,
       games: d.games,
+      players: d.players,
       resumo: typeof summarize === 'function' ? d.games.map(function (g) { try { return summarize(g); } catch (e) { return null; } }) : []
     };
   }
@@ -142,6 +164,7 @@
       cur.games.push(copy); byId[copy.id] = copy; res.copies++;
     });
     if (data.seq && data.seq > cur.seq) cur.seq = data.seq;
+    cur.players = cleanPlayers(cur.players.concat(data.players || []));
     saveAll(cur);
     return res;
   }
@@ -151,7 +174,7 @@
   global.StorageService = {
     DATA_VERSION: DATA_VERSION,
     loadAll: loadAll, saveAll: saveAll,
-    listGames: listGames, loadGame: loadGame, saveGame: saveGame, deleteGame: deleteGame, saveMeta: saveMeta, clearAll: clearAll,
+    listGames: listGames, listPlayers: listPlayers, savePlayers: savePlayers, mergePlayers: mergePlayers, loadGame: loadGame, saveGame: saveGame, deleteGame: deleteGame, saveMeta: saveMeta, clearAll: clearAll,
     saveDraft: saveDraft, loadDraft: loadDraft, clearDraft: clearDraft,
     exportBackup: exportBackup, importBackup: importBackup,
     isPersistent: isPersistent

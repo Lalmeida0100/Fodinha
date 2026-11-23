@@ -61,7 +61,7 @@
 <sc-if value="{{setupPlayersStep}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; align-items: center; gap: 8px; padding: 14px 12px 8px; flex: none">
 <button type="button" class="icon-btn" aria-label="Voltar" onClick="{{goHome}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
-<div class="disp" style="font-size: 22px; font-weight: 800; letter-spacing: .02em">NOVO JOGO</div>
+<div class="disp" style="font-size: 22px; font-weight: 800; letter-spacing: .02em">{{setupTitle}}</div>
 </div>
 <div class="scroll" style="padding: 8px 16px 20px; display: flex; flex-direction: column; gap: 22px">
 <div style="display: flex; flex-direction: column; gap: 8px">
@@ -85,7 +85,16 @@
 </sc-for>
 <div style="display: flex; gap: 8px">
 <label for="newp" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Nome do novo jogador</label>
-<input id="newp" class="field" type="text" placeholder="Nome do jogador" value="{{draft.newName}}" onChange="{{setNewName}}" onKeyDown="{{newNameKey}}" style="flex: 1 1 auto; min-width: 0">
+<div class="combo" style="flex: 1 1 auto; min-width: 0; position: relative">
+<input id="newp" class="field" type="text" placeholder="Nome do jogador" value="{{draft.newName}}" onChange="{{setNewName}}" onKeyDown="{{newNameKey}}" role="combobox" aria-expanded="{{comboOpen}}" aria-controls="newp-list" aria-autocomplete="list" autocomplete="off" style="padding-right: 46px">
+<button type="button" class="combo-arrow" onClick="{{toggleCombo}}" aria-label="{{comboArrowLabel}}" aria-expanded="{{comboOpen}}" aria-controls="newp-list"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform: rotate({{comboRot}}); transition: transform .15s"><path d="M6 9l6 6 6-6"></path></svg></button>
+<sc-if value="{{comboOpen}}">
+<div id="newp-list" class="combo-list" role="listbox" aria-label="Jogadores já cadastrados">
+<sc-for list="{{comboOptions}}" as="co"><button type="button" role="option" aria-selected="{{co.sel}}" class="combo-opt {{co.cls}}" onClick="{{co.pick}}">{{co.name}}</button></sc-for>
+<sc-if value="{{comboEmpty}}"><div class="combo-empty">{{comboEmpty}}</div></sc-if>
+</div>
+</sc-if>
+</div>
 <button type="button" class="btn btn-sec" onClick="{{addPlayer}}" disabled="{{cantAdd}}" style="padding: 0 16px; flex: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>ADICIONAR</button>
 </div>
 <sc-if value="{{showDeckOpt}}" hint-placeholder-val="{{ false }}">
@@ -204,6 +213,10 @@
 <button type="button" class="btn btn-sec btn-sm" onClick="{{gc.view}}">VER PARTIDA</button>
 <button type="button" class="btn btn-sec btn-sm" onClick="{{gc.del}}" style="color: var(--dead)">EXCLUIR</button>
 </div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button type="button" class="btn btn-sec btn-sm" onClick="{{gc.restart}}" aria-label="Reiniciar partida {{gc.name}}">REINICIAR PARTIDA</button>
+<button type="button" class="btn btn-sec btn-sm" onClick="{{gc.dup}}" aria-label="Duplicar jogo {{gc.name}}">DUPLICAR JOGO</button>
+</div>
 </div>
 </sc-for>
 <sc-if value="{{hasFinished}}" hint-placeholder-val="{{ true }}">
@@ -221,6 +234,10 @@
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
 <button type="button" class="btn btn-pri btn-sm" onClick="{{gf.view}}">VER PARTIDA</button>
 <button type="button" class="btn btn-sec btn-sm" onClick="{{gf.del}}" style="color: var(--dead)">EXCLUIR</button>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button type="button" class="btn btn-sec btn-sm" onClick="{{gf.restart}}" aria-label="Reiniciar partida {{gf.name}}">REINICIAR PARTIDA</button>
+<button type="button" class="btn btn-sec btn-sm" onClick="{{gf.dup}}" aria-label="Duplicar jogo {{gf.name}}">DUPLICAR JOGO</button>
 </div>
 </div>
 </sc-for>

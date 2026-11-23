@@ -19,7 +19,10 @@ function level(l) { if (l >= 7) return 'dead'; if (l >= 5) return 'risk'; if (l 
 function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function defaultSettings() { return { testa: true, startCards: 1, step: 1, decks: 1, deckSize: 40, deckCards: 40, limitMode: 'fixo', lettersMode: 'diferenca', overflow: 'imediato' }; }
-var DECK_PRESETS = [40, 52, 54, 80, 104];
+var DECK_PRESETS = [40, 80];
+var DECK_LABELS = { 40: '1 baralho (40 cartas)', 80: '2 baralhos (80 cartas)' };
+/* Comparação de nomes sem diferenciar maiúsculas nem acentos. */
+function foldName(n) { return String(n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 var NO_CARDS_MSG = 'Não há cartas suficientes para essa quantidade de jogadores. Aumente a quantidade de cartas ou reduza o número de jogadores.';
 /* Total de cartas disponíveis (jogos antigos: tamanho do baralho × baralhos). */
 function deckOf(s) { return s.deckCards || ((s.deckSize || 40) * (s.decks || 1)); }
@@ -156,7 +159,8 @@ class Component extends DCLogic {
   }
   componentDidMount() {
     var data = StorageService.loadAll(), games = data.games;
-    this.setState({ games: games, seq: data.seq, prefs: data.prefs, persistent: StorageService.isPersistent() });
+    var known = StorageService.mergePlayers(data.players, [].concat.apply([], games.map(function (g) { return g.players.map(function (p) { return p.name; }); })));
+    this.setState({ games: games, seq: data.seq, prefs: data.prefs, knownPlayers: known, persistent: StorageService.isPersistent() });
     /* Retoma a rodada que estava sendo lançada quando o app fechou. */
     var dr = StorageService.loadDraft();
     if (dr) {
@@ -170,6 +174,12 @@ class Component extends DCLogic {
     var self = this;
     this._net = function () { self.setState({ offline: navigator.onLine === false }); };
     window.addEventListener('online', this._net);
+    /* fecha a lista de jogadores ao tocar fora do campo */
+    this._outside = function (e) {
+      var dd = self.state.draft;
+      if (dd && dd.listOpen && !(e.target && e.target.closest && e.target.closest('.combo'))) self.setDraft({ listOpen: false });
+    };
+    document.addEventListener('pointerdown', this._outside);
     window.addEventListener('offline', this._net);
     this._net();
   }
@@ -194,7 +204,7 @@ class Component extends DCLogic {
       st.games.forEach(function (g) { nowIds[g.id] = 1; if (prevMap[g.id] !== g) StorageService.saveGame(g); });
       (ps.games || []).forEach(function (g) { if (!nowIds[g.id]) StorageService.deleteGame(g.id); });
     }
-    if (ps.seq !== st.seq || ps.prefs !== st.prefs) StorageService.saveMeta(st.seq, st.prefs);
+    if (ps.seq !== st.seq || ps.prefs !== st.prefs || ps.knownPlayers !== st.knownPlayers) StorageService.saveMeta(st.seq, st.prefs, st.knownPlayers);
     if (ps.entry !== st.entry || ps.screen !== st.screen) {
       var g = this.cur();
       if (st.entry && g && (st.screen === 'reg' || st.screen === 'conf')) {
@@ -238,14 +248,14 @@ class Component extends DCLogic {
       if (r.copies) parts.push(plural(r.copies, 'importada como cópia (já existia com outro conteúdo)', 'importadas como cópia (já existiam com outro conteúdo)'));
       if (r.skipped) parts.push(plural(r.skipped, 'já existia igual e foi ignorada', 'já existiam iguais e foram ignoradas'));
       if (r.invalid) parts.push(plural(r.invalid, 'inválida ignorada', 'inválidas ignoradas'));
-      self.setState({ games: data.games, seq: data.seq, prefs: data.prefs, dataMsg: { ok: true, text: 'Importação concluída: ' + parts.join(' · ') + '.' } });
+      self.setState({ games: data.games, seq: data.seq, prefs: data.prefs, knownPlayers: StorageService.mergePlayers(self.state.knownPlayers, data.players.map(function (p) { return p.name; })), dataMsg: { ok: true, text: 'Importação concluída: ' + parts.join(' · ') + '.' } });
     };
     reader.onerror = function () { input.value = ''; self.setState({ dataMsg: { ok: false, text: 'Não foi possível ler o arquivo.' } }); };
     reader.readAsText(file);
   }
   wipeAll() {
     StorageService.clearAll();
-    this.setState({ games: [], seq: 1, prefs: { theme: 'mesa', maxPlayers: 6 }, currentId: null, entry: null, modal: null, screen: 'home', dataMsg: null });
+    this.setState({ games: [], seq: 1, prefs: { theme: 'mesa', maxPlayers: 6 }, knownPlayers: [], currentId: null, entry: null, modal: null, screen: 'home', dataMsg: null });
     this.showToast('Todos os dados deste aparelho foram apagados.');
   }
   componentWillUnmount() { clearTimeout(this._t1); clearTimeout(this._t2); window.removeEventListener('online', this._net); window.removeEventListener('offline', this._net); }
@@ -266,6 +276,37 @@ class Component extends DCLogic {
   goNew() {
     this.setState({ screen: 'setup', draft: { name: '', players: [], newName: '', testa: true, multiDeck: false, deckCards: 40, deckCustom: false, limitMode: 'fixo', step: 'players', first: null, dir: 'horario' } });
   }
+  /* Duplicar: nova partida com as configurações da original; abre o cadastro de jogadores. A original não muda. */
+  duplicateGame(id) {
+    var g = this.state.games.filter(function (x) { return x.id === id; })[0]; if (!g) return;
+    var t = tableOf(g), map = {};
+    var players = t.order.map(function (pid) { var nid = uid(); map[pid] = nid; return { id: nid, name: nameOf(g, pid) }; });
+    var s = g.settings || {};
+    var deck = deckOf(s);
+    this.setState({ screen: 'setup', draft: {
+      name: (g.name || 'Jogo') + ' (cópia)', players: players, newName: '', testa: s.testa !== false,
+      multiDeck: (s.decks || 1) > 1, deckCards: deck, deckCustom: DECK_PRESETS.indexOf(deck) < 0, limitMode: s.limitMode || 'fixo',
+      step: 'players', first: map[t.first] || null, dir: t.dir, baseSettings: clone(s), theme: g.theme || null, fromName: g.name
+    } });
+  }
+  /* Reiniciar: zera rodadas, letras, eliminações e histórico; mantém jogadores, mesa e configurações. */
+  restartGame(id) {
+    var self = this, now = new Date().toISOString(), restarted = null;
+    var games = this.state.games.map(function (g) {
+      if (g.id !== id) return g;
+      var c = clone(g);
+      c.rounds = []; c.imports = []; c.winnerIds = []; c.status = 'andamento'; c.endedAt = null; c.startedAt = now;
+      c.log = [];
+      self.log(c, 'Partida reiniciada', null, null, 'Rodadas, letras e eliminações zeradas. Configurações mantidas.');
+      restarted = c;
+      return c;
+    });
+    if (!restarted) return;
+    var dr = StorageService.loadDraft(); if (dr && dr.gameId === id) StorageService.clearDraft();
+    var curEntry = this.state.currentId === id ? null : this.state.entry;
+    this.setState({ games: games, modal: null, entry: curEntry, currentId: id, screen: 'game', tab: 'mesa', open: {} });
+    this.showToast('Partida reiniciada. Começando da rodada 1.');
+  }
   openGame(id, tab, screen) { this.setState({ currentId: id, screen: screen || 'game', tab: tab || 'mesa', open: {} }); }
 
   /* ---------- novo jogo ---------- */
@@ -273,7 +314,7 @@ class Component extends DCLogic {
   addPlayer() {
     var d = this.state.draft, n = (d.newName || '').trim();
     if (!n || this.limitReached()) return;
-    this.setDraft({ players: d.players.concat([{ id: uid(), name: n }]), newName: '' });
+    this.setDraft({ players: d.players.concat([{ id: uid(), name: n }]), newName: '', listOpen: false });
   }
   limitReached() { var d = this.state.draft; var max = d.multiDeck ? Math.max(12, this.state.prefs.maxPlayers * 2) : this.state.prefs.maxPlayers; return d.players.length >= max; }
   startGame() {
@@ -284,14 +325,14 @@ class Component extends DCLogic {
     if (deck < 1 || Math.floor(deck / players.length) < 1) return;
     var auto = !(d.name || '').trim();
     var now = new Date().toISOString();
-    var s = defaultSettings(); s.testa = d.testa; s.decks = d.multiDeck ? 2 : 1;
+    var s = Object.assign(defaultSettings(), d.baseSettings ? clone(d.baseSettings) : {}); s.testa = d.testa; s.decks = d.multiDeck ? 2 : 1;
     s.deckCards = deck; s.limitMode = d.limitMode || 'fixo'; s.maxCards = Math.floor(deck / players.length);
     var ids = players.map(function (p) { return p.id; });
     var table = { order: ids, dir: d.dir === 'anti' ? 'anti' : 'horario', first: ids.indexOf(d.first) >= 0 ? d.first : ids[0] };
-    var g = { id: uid(), name: auto ? ('JOGO ' + pad(st.seq)) : d.name.trim(), status: 'andamento', createdAt: now, startedAt: now, endedAt: null, theme: st.prefs.theme, settings: s, players: players, table: table, rounds: [], winnerIds: [], log: [] };
-    this.log(g, 'Partida criada', null, null, players.map(function (p) { return p.name; }).join(', '));
+    var g = { id: uid(), name: auto ? ('JOGO ' + pad(st.seq)) : d.name.trim(), status: 'andamento', createdAt: now, startedAt: now, endedAt: null, theme: d.theme || st.prefs.theme, settings: s, players: players, table: table, rounds: [], winnerIds: [], log: [] };
+    this.log(g, d.fromName ? 'Partida criada (cópia de "' + d.fromName + '")' : 'Partida criada', null, null, players.map(function (p) { return p.name; }).join(', '));
     this.log(g, 'Ordem da mesa definida', null, null, orderFrom(ringFrom(table.order, table.dir), table.first, ids).map(function (id) { return nameOf(g, id); }).join(' → ') + ' · ' + dirLabel(table.dir));
-    this.setState({ games: [g].concat(st.games), seq: auto ? st.seq + 1 : st.seq, currentId: g.id, screen: 'game', tab: 'mesa', draft: null, open: {} });
+    this.setState({ games: [g].concat(st.games), knownPlayers: StorageService.mergePlayers(st.knownPlayers, players.map(function (p) { return p.name; })), seq: auto ? st.seq + 1 : st.seq, currentId: g.id, screen: 'game', tab: 'mesa', draft: null, open: {} });
   }
 
   /* ---------- lançamento ---------- */
@@ -496,6 +537,23 @@ class Component extends DCLogic {
       var d = st.draft, np = d.players.length;
       v.draft = d;
       v.autoName = 'JOGO ' + pad(st.seq);
+      v.setupTitle = d.fromName ? 'DUPLICAR JOGO' : 'NOVO JOGO';
+      /* sugestões da base geral de jogadores: tocar só preenche o campo; ADICIONAR confirma */
+      /* lista suspensa da base geral de jogadores: selecionar só preenche o campo; ADICIONAR confirma */
+      var inDraft = {}; d.players.forEach(function (p) { inDraft[foldName(p.name)] = 1; });
+      var typed = foldName(d.newName);
+      var avail = (st.knownPlayers || []).filter(function (p) { return !inDraft[foldName(p.name)]; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name, 'pt-BR'); });
+      var opts = avail.filter(function (p) { return !typed || foldName(p.name).indexOf(typed) >= 0; });
+      v.comboOpen = !!d.listOpen;
+      v.comboRot = d.listOpen ? '180deg' : '0deg';
+      v.comboArrowLabel = d.listOpen ? 'Fechar lista de jogadores cadastrados' : 'Abrir lista de jogadores cadastrados';
+      v.comboOptions = opts.map(function (p) {
+        var on = foldName(p.name) === typed;
+        return { name: p.name, cls: on ? 'on' : '', sel: on, pick: function () { self.setDraft({ newName: p.name, listOpen: false }); var el = document.getElementById('newp'); if (el) el.focus(); } };
+      });
+      v.comboEmpty = opts.length ? '' : (!avail.length ? 'Nenhum jogador cadastrado ainda. Digite o nome e toque em ADICIONAR.' : 'Nenhum jogador cadastrado com esse nome. Toque em ADICIONAR para incluir "' + (d.newName || '').trim() + '".');
+      v.toggleCombo = function () { self.setDraft({ listOpen: !self.state.draft.listOpen }); };
       v.setupCount = np + (np === 1 ? ' jogador' : ' jogadores');
       v.setupPlayers = d.players.map(function (p, i) {
         return {
@@ -507,8 +565,12 @@ class Component extends DCLogic {
         };
       });
       v.setDraftName = function (ev) { self.setDraft({ name: ev.target.value }); };
-      v.setNewName = function (ev) { self.setDraft({ newName: ev.target.value }); };
-      v.newNameKey = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); self.addPlayer(); } };
+      v.setNewName = function (ev) { var val = ev.target.value; self.setDraft({ newName: val, listOpen: val.trim() ? true : self.state.draft.listOpen }); };
+      v.newNameKey = function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); self.addPlayer(); }
+        else if (ev.key === 'Escape') { self.setDraft({ listOpen: false }); }
+        else if (ev.key === 'ArrowDown') { ev.preventDefault(); if (!self.state.draft.listOpen) self.setDraft({ listOpen: true }); else { var f = document.querySelector('#newp-list .combo-opt'); if (f) f.focus(); } }
+      };
       v.addPlayer = function () { self.addPlayer(); };
       v.toggleTesta = function () { self.setDraft({ testa: !d.testa }); };
       v.toggleMultiDeck = function () {
@@ -522,7 +584,7 @@ class Component extends DCLogic {
       v.cantAdd = !(d.newName || '').trim() || lim;
       v.showDeckOpt = np >= st.prefs.maxPlayers || d.multiDeck;
       v.deckChips = DECK_PRESETS.map(function (n) {
-        return { label: n + ' cartas', cls: !d.deckCustom && d.deckCards === n ? 'on' : '', pick: function () { self.setDraft({ deckCards: n, deckCustom: false }); } };
+        return { label: DECK_LABELS[n], cls: !d.deckCustom && d.deckCards === n ? 'on' : '', pick: function () { self.setDraft({ deckCards: n, deckCustom: false }); } };
       }).concat([{ label: 'Personalizado', cls: d.deckCustom ? 'on' : '', pick: function () { self.setDraft({ deckCustom: true }); } }]);
       v.deckCustom = !!d.deckCustom;
       v.deckValue = d.deckCards ? String(d.deckCards) : '';
@@ -563,7 +625,9 @@ class Component extends DCLogic {
           date: fmtDate(gm.status === 'finalizado' ? gm.endedAt : gm.createdAt), winner: winnerText(gm),
           cont: function () { self.openGame(gm.id, 'mesa'); },
           view: function () { self.openGame(gm.id, 'hist'); },
-          del: function () { self.setState({ modal: { type: 'delete', id: gm.id, name: gm.name } }); }
+          del: function () { self.setState({ modal: { type: 'delete', id: gm.id, name: gm.name } }); },
+          restart: function () { self.setState({ modal: { type: 'restart', id: gm.id, name: gm.name } }); },
+          dup: function () { self.duplicateGame(gm.id); }
         };
       };
       v.ongoing = st.games.filter(function (x) { return x.status !== 'finalizado'; }).map(card);
@@ -859,7 +923,7 @@ class Component extends DCLogic {
         maxDec: function () { self.setState({ prefs: Object.assign({}, st.prefs, { maxPlayers: Math.max(3, st.prefs.maxPlayers - 1) }) }); },
         maxInc: function () { self.setState({ prefs: Object.assign({}, st.prefs, { maxPlayers: Math.min(12, st.prefs.maxPlayers + 1) }) }); },
         deckOpts: DECK_PRESETS.map(function (n) {
-          return { label: n + ' cartas', cls: !st.setDeckCustom && deckNow === n ? 'on' : '', pick: function () { self.setState({ setDeckCustom: false }); setDeck(n); } };
+          return { label: DECK_LABELS[n], cls: !st.setDeckCustom && deckNow === n ? 'on' : '', pick: function () { self.setState({ setDeckCustom: false }); setDeck(n); } };
         }).concat([{ label: 'Personalizado', cls: (st.setDeckCustom || DECK_PRESETS.indexOf(deckNow) < 0) ? 'on' : '', pick: function () { self.setState({ setDeckCustom: true }); } }]),
         deckCustom: !!st.setDeckCustom || DECK_PRESETS.indexOf(deckNow) < 0,
         deckValue: st.deckDraft != null ? st.deckDraft : String(deckNow),
@@ -932,6 +996,9 @@ class Component extends DCLogic {
       v.md = { title: 'Excluir "' + st.modal.name + '"?', text: 'Tem certeza que deseja excluir esta partida? Esta ação não poderá ser desfeita.', okLabel: 'EXCLUIR', ok: function () {
         self.setState({ games: self.state.games.filter(function (x) { return x.id !== mid; }), modal: null, screen: self.state.games.length > 1 ? 'list' : 'home' });
       } };
+    } else if (st.modal && st.modal.type === 'restart') {
+      var rid = st.modal.id;
+      v.md = { title: 'Reiniciar "' + st.modal.name + '"?', text: 'Todos voltam a zero letras, inclusive os eliminados, e a partida recomeça da rodada 1. Palpites, vazas e o histórico de rodadas serão apagados. Jogadores, ordem da mesa e configurações continuam iguais. Esta ação não poderá ser desfeita.', okLabel: 'REINICIAR', ok: function () { self.restartGame(rid); } };
     } else if (st.modal && st.modal.type === 'wipe') {
       v.md = { title: 'Apagar todos os dados?', text: 'Todas as partidas deste aparelho serão apagadas. Esta ação não poderá ser desfeita. Se quiser guardar, exporte um backup antes.', okLabel: 'APAGAR', ok: function () { self.wipeAll(); } };
     } else if (st.modal) { v.hasModal = false; }
