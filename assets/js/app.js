@@ -553,7 +553,12 @@ class Component extends DCLogic {
         return { name: p.name, cls: on ? 'on' : '', sel: on, pick: function () { self.setDraft({ newName: p.name, listOpen: false }); var el = document.getElementById('newp'); if (el) el.focus(); } };
       });
       v.comboEmpty = opts.length ? '' : (!avail.length ? 'Nenhum jogador cadastrado ainda. Digite o nome e toque em ADICIONAR.' : 'Nenhum jogador cadastrado com esse nome. Toque em ADICIONAR para incluir "' + (d.newName || '').trim() + '".');
-      v.toggleCombo = function () { self.setDraft({ listOpen: !self.state.draft.listOpen }); };
+      v.toggleCombo = function () {
+        var open = !self.state.draft.listOpen;
+        self.setDraft({ listOpen: open });
+        /* no celular, garante que a lista aberta apareça na tela */
+        if (open) setTimeout(function () { var l = document.getElementById('newp-list'); if (l && l.scrollIntoView) l.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 60);
+      };
       v.setupCount = np + (np === 1 ? ' jogador' : ' jogadores');
       v.setupPlayers = d.players.map(function (p, i) {
         return {

@@ -66,8 +66,11 @@ Não é preciso GitHub Actions: não existe etapa de build.
 ## 3. Fazer atualizações
 
 1. Altere os arquivos e envie para a branch `main`, seja pelo site (**Add file → Upload files**, substituindo) ou com `git commit` + `git push`.
-2. **Abra `service-worker.js` e aumente o número em `CACHE_VERSION`**, por exemplo de `fodinha-v1.0.0` para `fodinha-v1.0.1`. Assim os celulares que já instalaram o app baixam a versão nova.
-3. O GitHub Pages publica sozinho em cerca de 1 minuto. Nos aparelhos, a versão nova aparece ao abrir o app pela segunda vez.
+2. **Troque o número da versão em dois lugares, com o mesmo valor** (por exemplo, de `1.2.0` para `1.2.1`):
+   - em `service-worker.js`, na linha `var APP_VERSION = '1.2.0';`;
+   - em `index.html`, nos quatro `?v=1.2.0` dos arquivos CSS e JS.
+   Assim o celular baixa todos os arquivos novos juntos e nunca mistura versões.
+3. O GitHub Pages publica sozinho em cerca de 1 minuto. Nos aparelhos, o app recarrega sozinho com a versão nova na primeira vez que for aberto com internet.
 
 **As partidas dos usuários não se perdem nas atualizações.** Os dados têm um número de versão (`dataVersion`). Se um dia o formato mudar, aumente `DATA_VERSION` em `assets/js/storage.js` e escreva a conversão dentro da função `migrate()`.
 

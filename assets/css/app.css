@@ -148,3 +148,34 @@ noscript{display:block;color:#fff;padding:24px;font-family:system-ui,sans-serif}
 .combo-opt:hover,.combo-opt:focus-visible{background:var(--sf2)}
 .combo-opt.on{background:var(--sf2);box-shadow:inset 0 0 0 1px var(--line)}
 .combo-empty{padding:12px;font-size:14px;color:var(--mu);line-height:1.4}
+
+/* ---------- otimizações para celular (v1.2) ---------- */
+/* Listas roláveis: os cartões nunca encolhem abaixo do conteúdo (evitava histórico e evolução cortados). */
+.scroll > *{flex-shrink:0}
+/* Lista suspensa ocupa a largura útil mesmo quando o campo é estreito. */
+.combo-list{right:auto;width:max(100%,min(300px,calc(100vw - 32px)))}
+.add-btn{padding:0 16px;flex:none}
+/* Telas estreitas (até 400px: a maioria dos Android e iPhone mini/SE) */
+@media (max-width:400px){
+  .add-btn{padding:0 12px;gap:6px;font-size:15px}
+  .add-btn svg{width:18px;height:18px}
+  .btn-xl{font-size:17px;min-height:60px}
+  .tile{width:28px;height:36px;font-size:18px}
+}
+/* Telas muito estreitas (até 340px) */
+@media (max-width:340px){
+  .add-btn .add-txt{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .add-btn{padding:0 14px}
+  .tile{width:25px;height:33px;font-size:16px}
+  .btn-xl{font-size:16px}
+  .trk-grid{grid-template-columns:22px minmax(0,1fr) 34px 118px !important;gap:4px !important}
+  .trk-grid .step button{width:38px}
+  .trk-grid .vbtn{min-width:38px}
+  .steps{gap:4px;padding:6px 8px 8px;font-size:10px;letter-spacing:.02em}
+  .stp{padding:4px 7px}
+  .pnum{width:24px}
+  .btn-sm{font-size:12px;padding:0 6px;letter-spacing:.01em}
+  .mu.trk-grid{font-size:9px !important;letter-spacing:.04em !important}
+}
+/* Celular deitado / telas baixas: menos espaço vertical na tela inicial */
+@media (max-height:560px){.app .tile-lg{width:34px;height:46px;font-size:24px}}

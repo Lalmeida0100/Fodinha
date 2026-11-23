@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <link rel="preload" href="assets/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/app.css?v=1.2.0">
 </head>
 <body>
 <div id="app"><noscript>O Fodinha precisa do JavaScript ativado para funcionar.</noscript></div>
@@ -95,7 +95,7 @@
 </div>
 </sc-if>
 </div>
-<button type="button" class="btn btn-sec" onClick="{{addPlayer}}" disabled="{{cantAdd}}" style="padding: 0 16px; flex: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>ADICIONAR</button>
+<button type="button" class="btn btn-sec add-btn" onClick="{{addPlayer}}" disabled="{{cantAdd}}" aria-label="Adicionar jogador"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span class="add-txt">ADICIONAR</span></button>
 </div>
 <sc-if value="{{showDeckOpt}}" hint-placeholder-val="{{ false }}">
 <label class="check card" style="padding: 14px">
@@ -528,11 +528,11 @@
 <sc-if value="{{rv.isTricks}}" hint-placeholder-val="{{ false }}">
 <div class="scroll" style="padding: 4px 16px 12px; display: flex; flex-direction: column; gap: 8px">
 <div class="card" style="padding: 4px 12px">
-<div class="mu" style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px 136px; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 10px 0 6px">
+<div class="mu trk-grid" style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px 136px; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 10px 0 6px">
 <div></div><div>JOGADOR</div><div style="text-align: center">PALPITE</div><div style="text-align: center">FEZ</div>
 </div>
 <sc-for list="{{rv.trickList}}" as="tl2" hint-placeholder-count="4">
-<div class="prow" style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px 136px; gap: 6px; align-items: center">
+<div class="prow trk-grid" style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px 136px; gap: 6px; align-items: center">
 <div class="pnum">{{tl2.num}}</div>
 <div style="font-weight: 800; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{tl2.name}}</div>
 <div class="disp mu" style="text-align: center; font-weight: 800; font-size: 20px" aria-label="Palpite {{tl2.bid}}">{{tl2.bid}}</div>
@@ -830,14 +830,20 @@
 </div>
 </template>
 
-<script src="assets/js/runtime.js"></script>
-<script src="assets/js/storage.js"></script>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/runtime.js?v=1.2.0"></script>
+<script src="assets/js/storage.js?v=1.2.0"></script>
+<script src="assets/js/app.js?v=1.2.0"></script>
 <script>
 /* Modo offline/instalável (PWA). Caminho relativo: funciona em usuario.github.io/nome-do-repositorio/. */
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('service-worker.js', { scope: './' }).catch(function (e) { console.warn('Service worker não registrado', e); });
+    /* Quando uma versão nova é instalada, recarrega uma vez para trocar todos os arquivos juntos (os dados ficam salvos). */
+    var hadController = !!navigator.serviceWorker.controller, reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadController || reloaded) return;
+      reloaded = true; location.reload();
+    });
   });
 }
 </script>
